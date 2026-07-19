@@ -29,12 +29,7 @@ from configs.config import SystemConfig, PositionControllerConfig, get_trajector
 def system_solve(u1, u2, u3, psi, m, g):
     """Python port of MATLAB system_solve.m"""
     if abs(psi) <= 0.001: psi = 0.001
-    a = np.sin(psi); b = np.cos(psi)
-    A = u1/u3; B = u2/u3
-    C = (a*A - b*B) / (a**2 + b**2)
-    roll  = np.arctan((B + b*C) / a)
-    pitch = np.arctan(C * np.cos(roll))
-    pitch = np.clip(pitch, -np.pi/4, np.pi/4)
+
     roll  = np.clip(roll,  -np.pi/4, np.pi/4)
     ft = (m / (np.cos(pitch)*np.cos(roll))) * (-u3)
     return ft, pitch, roll
@@ -122,17 +117,7 @@ class PositionEnv(gym.Env):
         action = np.clip(np.array(action, dtype=np.float64), -1.0, 1.0)
         acc_body = action * self.cfg.MAX_BODY_ACCELERATION
 
-        att   = self.state[6:9]
-        rates = self.state[9:12]
-        psi   = att[2]
-
-        ux, uy, uz = acc_body
-        u3 = uz - self.sys_cfg.GRAVITY
-        if abs(u3) < 1e-4: u3 = -1e-4
-
-        ft, phi_des, theta_des = system_solve(ux, uy, u3, psi,
-                                              self.sys_cfg.MASS, self.sys_cfg.GRAVITY)
-        ft = np.clip(ft, self.sys_cfg.MIN_THRUST, self.sys_cfg.MAX_THRUST)
+       
 
         # FIX 3: always track yaw=0, not current psi
         att_des = np.array([phi_des, theta_des, 0.0])
@@ -155,11 +140,7 @@ class PositionEnv(gym.Env):
             torques = np.clip(torques,
                               -self.sys_cfg.MAX_TORQUE, self.sys_cfg.MAX_TORQUE)
         else:
-            att_error = self.dynamics.wrap_angles(att_des - att)
-            kp, kd    = 8.0, 2.0
-            torques   = kp * att_error - kd * rates
-            torques   = np.clip(torques, -self.sys_cfg.MAX_TORQUE,
-                                          self.sys_cfg.MAX_TORQUE)
+          
 
         self.state = self.dynamics.rk4_step(self.state, ft, torques)
         self.time  += self.sys_cfg.DT
@@ -200,21 +181,7 @@ class PositionEnv(gym.Env):
 
     def _compute_reward(self, norm_action, acc_body, ft, att_des):
         # FIX 2: dense exponential reward, no precision bonus
-        pos     = self.state[0:3]
-        vel     = self.state[3:6]
-        att     = self.state[6:9]
-        pos_des, vel_des, _ = self.get_trajectory(self.time, self.trajectory_scale)
-
-        pos_err = np.linalg.norm(pos - pos_des)
-        vel_err = np.linalg.norm(vel - vel_des)
-
-        pos_r    = 10.0 * np.exp(-2.0 * pos_err)
-        vel_p    = -0.5 * (vel_err / self.sys_cfg.MAX_VELOCITY)**2
-        att_norm = np.deg2rad(15.0)
-        att_p    = -1.0 * np.sum(np.square(att[0:2] / att_norm))
-        thrust_err  = abs(ft - self.sys_cfg.MASS*self.sys_cfg.GRAVITY) / \
-                      (self.sys_cfg.MASS*self.sys_cfg.GRAVITY)
-        survival_r  = 1.0 * np.exp(-3.0 * thrust_err)
+     
 
         smooth_p = 0.0
         if self.prev_action is not None:
