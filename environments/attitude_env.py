@@ -90,40 +90,9 @@ class AttitudeEnv(gym.Env):
         return obs.astype(np.float32)
 
     def _compute_reward(self, action):
-        att   = self.state[6:9]
-        rates = self.state[9:12]
+  
 
-        att_error     = self.dynamics.wrap_angles(att - self.desired_attitude)
-        att_error_mag = np.linalg.norm(att_error)
-
-        # Exponential attitude reward (peak=+10)
-        att_r = 10.0 * np.exp(-5.0 * att_error_mag)
-
-        # Rate damping (stronger near target to prevent oscillation)
-        rate_norm  = np.linalg.norm(rates)
-        damp_mult  = 1.0 + 3.0 * np.exp(-5.0 * att_error_mag)
-        rate_p     = -1.5 * rate_norm * damp_mult
-
-        # Stability bonus
-        is_level  = np.rad2deg(att_error_mag) < 5.0
-        is_static = np.max(np.abs(rates)) < 0.05
-        stab_b    = 3.0 if (is_level and is_static) else 0.0
-
-        # Action effort penalty (normalised by physical limit)
-        effort_p = -0.01 * np.sum((action / self.cfg.MAX_TORQUE)**2)
-
-        reward = att_r + rate_p + stab_b + effort_p
-
-        info = {
-            'att_error':  np.rad2deg(att_error_mag),
-            'rate_error': rate_norm,
-            'reward_components': {
-                'attitude':   att_r,
-                'rate':       rate_p,
-                'stability':  stab_b,
-                'effort':     effort_p
-            }
-        }
+       
         return reward, info
 
     def _check_done(self):
